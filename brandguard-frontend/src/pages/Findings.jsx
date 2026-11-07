@@ -7,6 +7,7 @@ import {
   getSavedUser
 } from '../services/api';
 
+import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 
 export default function Findings() {
@@ -81,12 +82,16 @@ export default function Findings() {
 
   // Common page layout
   const renderLayout = (content) => (
-    <div className="app-layout">
-      <Sidebar role={role} />
+    <div className="dashboard-layout">
+      <Navbar />
 
-      <main className="main-content">
-        {content}
-      </main>
+      <div className="dashboard-body">
+        <Sidebar role={role} />
+
+        <main className="dashboard-content">
+          {content}
+        </main>
+      </div>
     </div>
   );
 
