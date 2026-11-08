@@ -28,10 +28,18 @@ app.use(cors());
 app.use(express.json());
 
 // Health check
+// Health check
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
     message: "BrandGuard AI Backend is running!"
+  });
+});
+
+app.get("/healthz", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "BrandGuard AI Backend is healthy"
   });
 });
 
