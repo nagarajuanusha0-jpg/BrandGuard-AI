@@ -498,7 +498,10 @@
   background: #DCFCE7;
   color: #15803D;
 }
-
+.status-badge.analysis-complete {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
 .status-badge.needs-changes {
   background: #FEE2E2;
   color: #B91C1C;
