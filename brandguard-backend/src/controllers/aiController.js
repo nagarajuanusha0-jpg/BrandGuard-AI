@@ -132,49 +132,51 @@ const analyzeSubmission = async (req, res) => {
 
     // 3. RETRIEVE ACTIVE GUIDELINES
 
-    const guidelines = await Guideline.find({
-      isActive: true
-    }).select("title category description attachment");
+    
+// 3. RETRIEVE ACTIVE GUIDELINES
 
-    const approved_tone_rules = [];
+const guidelines = await Guideline.find({
+  isActive: true
+}).select("title category description attachment");
 
-    for (const guideline of guidelines) {
-      let guidelineText = `
+const approved_tone_rules = [];
+
+for (const guideline of guidelines) {
+  let guidelineText = `
 Category: ${guideline.category}
 Guideline: ${guideline.title}
 Instructions: ${guideline.description}
-      `.trim();
+  `.trim();
 
-      if (guideline.attachment?.storagePath) {
-        const extracted = await extractDocument(
-          guideline.attachment.storagePath,
-          guideline.attachment.originalName,
-          guideline.attachment.mimeType
-        );
+  // An unavailable attachment must not stop the entire analysis.
+  if (guideline.attachment?.storagePath) {
+    try {
+      const extracted = await extractDocument(
+        guideline.attachment.storagePath,
+        guideline.attachment.originalName,
+        guideline.attachment.mimeType
+      );
 
-        guidelineText +=
-          `\nAttached Document: ${extracted.filename}\n` +
-          extracted.text;
-      }
+      guidelineText +=
+        `\nAttached Document: ${extracted.filename}\n` +
+        extracted.text;
 
-      approved_tone_rules.push(guidelineText);
+    } catch (attachmentError) {
+      console.warn(
+        `Guideline attachment unavailable: ${guideline.title}`,
+        attachmentError.message
+      );
     }
+  }
 
-    console.log(
-      "Active guidelines sent to AI:",
-      approved_tone_rules.length
-    );
+  // Always send the guideline title and description.
+  approved_tone_rules.push(guidelineText);
+}
 
-    console.log(
-      "Previous revision findings:",
-      previousFindings.length
-    );
-
-    console.log(
-      "Current revision:",
-      revisionNumber
-    );
-
+console.log(
+  "Active guidelines sent to AI:",
+  approved_tone_rules.length
+);
 
     // 4. RUN AI ANALYSIS
 
