@@ -1,8 +1,36 @@
+
 const fs = require("fs/promises");
 const path = require("path");
 
-const AI_SERVICE_URL =
-  process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
+const AI_SERVICE_URL = (
+  process.env.AI_SERVICE_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
+
+const parseResponse = async (response, endpoint) => {
+  const responseText = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(
+      `AI ${endpoint} returned non-JSON response. ` +
+      `HTTP ${response.status}. ` +
+      `Content-Type: ${response.headers.get("content-type")}. ` +
+      `Response: ${responseText.slice(0, 500)}`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail || data.message ||
+      `AI ${endpoint} failed with HTTP ${response.status}`
+    );
+  }
+
+  return data;
+};
 
 const extractDocument = async (filePath, filename, mimeType) => {
   if (!filePath || !filename) {
@@ -33,9 +61,9 @@ const extractDocument = async (filePath, filename, mimeType) => {
     signal: AbortSignal.timeout(60000)
   });
 
-  const data = await response.json();
+  const data = await parseResponse(response, "/extract");
 
-  if (!response.ok || !data.success) {
+  if (!data.success) {
     throw new Error(
       data.detail || data.message || "Document extraction failed."
     );
@@ -43,7 +71,6 @@ const extractDocument = async (filePath, filename, mimeType) => {
 
   return data;
 };
-
 
 const analyzeContent = async ({
   content,
@@ -71,17 +98,8 @@ const analyzeContent = async ({
     signal: AbortSignal.timeout(60000)
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.detail || data.message || "AI service request failed."
-    );
-  }
-
-  return data;
+  return await parseResponse(response, "/analyze");
 };
-
 
 module.exports = {
   analyzeContent,
