@@ -73,31 +73,38 @@ const analyzeSubmission = async (req, res) => {
     await submission.save();
 
 
-    // 1. EXTRACT SUBMISSION DOCUMENT
+   
+// 1. EXTRACT SUBMISSION DOCUMENT
 
-    let content = `${submission.title}\n\n${submission.description}`;
+let content = `${submission.title}\n\n${submission.description}`;
 
-    if (submission.attachments?.length) {
-      for (const attachment of submission.attachments) {
-        if (!attachment.storagePath) {
-          throw new Error(
-            `Stored file path is missing for ${
-              attachment.originalName || "submission document"
-            }.`
-          );
-        }
-
-        const extracted = await extractDocument(
-          attachment.storagePath,
-          attachment.originalName,
-          attachment.mimeType
-        );
-
-        content +=
-          `\n\nSubmission Document: ${extracted.filename}\n` +
-          extracted.text;
+if (submission.attachments?.length) {
+  for (const attachment of submission.attachments) {
+    try {
+      if (!attachment.storagePath) {
+        throw new Error("Stored file path is missing.");
       }
+
+      const extracted = await extractDocument(
+        attachment.storagePath,
+        attachment.originalName,
+        attachment.mimeType
+      );
+
+      content +=
+        `\n\nSubmission Document: ${extracted.filename}\n` +
+        extracted.text;
+
+    } catch (attachmentError) {
+      console.warn(
+        `Submission attachment unavailable: ${
+          attachment.originalName || "Unknown file"
+        }`,
+        attachmentError.message
+      );
     }
+  }
+}
 
 
     // 2. RETRIEVE PREVIOUS REVISION FINDINGS
