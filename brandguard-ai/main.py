@@ -258,11 +258,16 @@ def extract_explicit_replacements(guideline_text: str) -> dict[str, str]:
 
 
 def find_rule_for_term(guidelines: list[str], term: str) -> str:
-    for rule in guidelines:
-        if term.casefold() in rule.casefold():
-            return rule
-    return guidelines[0] if guidelines else ""
+    term = clean(term)
 
+    if not term:
+        return ""
+
+    for rule in guidelines:
+        if find_term(rule, term):
+            return rule
+
+    return ""
 
 def extract_official_brand_names(guideline_text: str) -> list[str]:
     patterns = [
@@ -297,24 +302,64 @@ def brand_name_mismatches(content: str, official_name: str) -> list[re.Match[str
 
 def is_tone_guideline(rule: str) -> bool:
     lowered = rule.casefold()
-    return any(keyword in lowered for keyword in TONE_KEYWORDS)
+
+    category_match = re.search(
+        r"(?im)^\s*category\s*:\s*([^\r\n]+)",
+        rule
+    )
+
+    if category_match:
+        category = category_match.group(1).strip().casefold()
+
+        if "terminology" in category:
+            return False
+
+        if "tone" in category or "brand guidelines" in category:
+            return True
+
+    return any(
+        keyword in lowered
+        for keyword in TONE_KEYWORDS
+    )
 
 
 def claim_policy_active(guideline_text: str) -> bool:
     lowered = guideline_text.casefold()
-    return any(keyword in lowered for keyword in CLAIM_POLICY_KEYWORDS)
 
+    if any(keyword in lowered for keyword in CLAIM_POLICY_KEYWORDS):
+        return True
+
+    if "unsupported" in lowered and "claim" in lowered:
+        return True
+
+    if "guarantee" in lowered and any(
+        phrase in lowered
+        for phrase in ("do not", "avoid", "must not", "prohibited")
+    ):
+        return True
+
+    return False
 
 def find_claim_policy_rule(guidelines: list[str]) -> str:
-    keywords = (
-        "unsupported claims", "verified claims", "claims must be supported",
-        "supported by evidence", "approved facts", "verified information",
-        "supporting evidence", "must be supported",
-    )
     for guideline in guidelines:
-        for line in guideline.splitlines():
-            if any(keyword in line.casefold() for keyword in keywords):
-                return guideline
+        lowered = guideline.casefold()
+
+        if (
+            ("unsupported" in lowered and "claim" in lowered)
+            or ("supporting evidence" in lowered)
+            or ("approved facts" in lowered)
+            or ("verified information" in lowered)
+            or ("claims must be supported" in lowered)
+            or (
+                "guarantee" in lowered
+                and any(
+                    phrase in lowered
+                    for phrase in ("do not", "avoid", "must not", "prohibited")
+                )
+            )
+        ):
+            return guideline
+
     return ""
 
 
@@ -488,18 +533,26 @@ def calculate_score(findings: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+
 def finding_signature(item: dict[str, Any]) -> tuple[str, str, str]:
-    issue = re.sub(r"\s+", " ", clean(item.get("issue"))).casefold()
+    issue = re.sub(
+        r"\s+", " ",
+        clean(item.get("issue"))
+    ).casefold()
+
     category = clean(item.get("category")).casefold()
+
     evidence = re.sub(
         r"\s+", " ",
         clean(
             item.get("submitted_evidence")
+            or item.get("evidence")
             or item.get("excerpt")
             or item.get("originalExcerpt")
             or item.get("original_excerpt")
         ),
     ).casefold()
+
     return issue, category, evidence
 
 
@@ -703,11 +756,21 @@ def analyze_content(request: AnalyzeRequest):
             guideline_evidence=explicit_rule_evidence(rule, term),
         )
 
-    # 3. Tone checks only run when an approved tone rule exists.
+     # 3. Tone checks only run when an approved tone rule exists.
     tone_guidelines = [rule for rule in guidelines if is_tone_guideline(rule)]
+
     if tone_guidelines:
         tone_rule = tone_guidelines[0]
+
+        # Avoid reporting explicitly prohibited terms again as tone concerns.
+        prohibited_set = {
+            term.casefold() for term in prohibited_terms
+        }
+
         for expression, replacement in CASUAL_REPLACEMENTS.items():
+            if expression.casefold() in prohibited_set:
+                continue
+
             for match in find_terms(content, expression):
                 add_finding(
                     findings,
@@ -730,7 +793,6 @@ def analyze_content(request: AnalyzeRequest):
                     evidence_type="heuristic_tone",
                     guideline_evidence=explicit_rule_evidence(tone_rule),
                 )
-
     # 4. Explicit terminology replacements.
     prohibited_lookup = {term.casefold() for term in prohibited_terms}
     for term, replacement in replacements.items():
