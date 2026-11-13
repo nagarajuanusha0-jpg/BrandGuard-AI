@@ -1,6 +1,14 @@
+
 import './styles/App.css';
 
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  Outlet
+} from 'react-router-dom';
+
 import { useEffect, useState } from 'react';
 
 import {
@@ -16,6 +24,7 @@ import Guidelines from './pages/Guidelines';
 import SubmitContent from './pages/SubmitContent';
 import MySubmissions from './pages/MySubmissions';
 import Findings from './pages/Findings';
+
 import Review from './pages/Review';
 import UserManagement from './pages/UserManagement';
 import AllSubmissions from './pages/AllSubmissions';

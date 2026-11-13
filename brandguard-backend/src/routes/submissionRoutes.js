@@ -20,9 +20,9 @@ const {
   getMySubmissions,
   getSubmissionById,
   updateSubmission,
-  getSubmissionRevisions
+  getSubmissionRevisions,
+  deleteSubmission
 } = require("../controllers/submissionController");
-
 const allowRoles = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -35,7 +35,14 @@ const allowRoles = (...roles) => {
   };
 };
 
+
 router.use(protect);
+// Delete Creator's own submission
+router.delete(
+  "/:id",
+  allowRoles("Creator"),
+  deleteSubmission
+);
 
 router.get("/mine", allowRoles("Creator"), getMySubmissions);
 

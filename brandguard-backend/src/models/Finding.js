@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const findingSchema = new mongoose.Schema(
@@ -24,6 +25,11 @@ const findingSchema = new mongoose.Schema(
       required: true
     },
 
+    category: {
+      type: String,
+      default: ""
+    },
+
     source: {
       type: String,
       default: ""
@@ -35,6 +41,36 @@ const findingSchema = new mongoose.Schema(
     },
 
     suggestedCorrection: {
+      type: String,
+      default: ""
+    },
+
+    excerpt: {
+      type: String,
+      default: ""
+    },
+
+    originalExcerpt: {
+      type: String,
+      default: ""
+    },
+
+    evidenceExcerpt: {
+      type: String,
+      default: ""
+    },
+
+    confidence: {
+      type: String,
+      default: ""
+    },
+
+    evidenceType: {
+      type: String,
+      default: ""
+    },
+
+    ruleId: {
       type: String,
       default: ""
     },

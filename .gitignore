@@ -11,3 +11,9 @@ uploads/
 *.log
 
 /brandguard-backend/resetAdmin.js
+# AI testing files
+/brandguard-ai/test.docx
+/brandguard-ai/test.pptx
+/brandguard-ai/test_documents/
+/brandguard-ai/test_extractor.py
+/brandguard-backend/src/scripts/seedDemoUsers.js

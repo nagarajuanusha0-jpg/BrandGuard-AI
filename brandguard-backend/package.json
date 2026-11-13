@@ -4,10 +4,11 @@
   "description": "BrandGuard AI Backend",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
-  },
+  "test": "echo \"Error: no test specified\" && exit 1",
+  "dev": "nodemon src/server.js",
+  "start": "node src/server.js",
+  "seed:demo": "node src/scripts/seedDemoUsers.js"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",

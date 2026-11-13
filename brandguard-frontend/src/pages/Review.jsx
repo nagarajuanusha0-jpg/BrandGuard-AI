@@ -21,6 +21,10 @@ export default function Review() {
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState(null);
 
+  // In-app notification and confirmation states
+  const [notification, setNotification] = useState(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
+
   // Content viewing states
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
   const [submissionDetails, setSubmissionDetails] = useState({});
@@ -28,6 +32,23 @@ export default function Review() {
   const [detailLoadingId, setDetailLoadingId] = useState(null);
   const [detailError, setDetailError] = useState('');
 
+  // Automatically hide notifications
+  useEffect(() => {
+    if (!notification) return;
+
+    const timer = setTimeout(() => {
+      setNotification(null);
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [notification]);
+
+  // Display in-app notification
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+  };
+
+  // Load submissions and review history
   const loadReviews = useCallback(async () => {
     try {
       setError('');
@@ -93,6 +114,7 @@ export default function Review() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   loadReviews();
 }, [loadReviews]);
+
   // Open actual Creator-submitted content
   const handleViewContent = async item => {
     if (selectedSubmissionId === item.id) {
@@ -115,7 +137,7 @@ export default function Review() {
         response.data ||
         response;
 
-      // Retrieve AI findings separately.
+      // Retrieve AI findings separately
       let findings = [];
 
       try {
@@ -177,28 +199,42 @@ export default function Review() {
     return { description, content };
   };
 
-  // Approve or request changes
-  const handleReview = async (item, decision) => {
+  // Validate and prepare the review decision
+  const handleReview = (item, decision) => {
     if (!viewedIds.includes(item.id)) {
-      alert('Please view the submitted content before reviewing.');
+      showNotification(
+        'Please view the submitted content before reviewing.',
+        'error'
+      );
       return;
     }
 
     const comment = comments[item.id]?.trim() || '';
 
     if (decision === 'Needs Changes' && !comment) {
-      alert('Please enter a comment explaining the requested changes.');
+      showNotification(
+        'Please enter a comment explaining the requested changes.',
+        'error'
+      );
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to mark "${item.title}" as ${decision}?`
-    );
+    setPendingConfirmation({
+      item,
+      decision,
+      comment
+    });
+  };
 
-    if (!confirmed) return;
+  // Save confirmed review decision
+  const confirmReview = async () => {
+    if (!pendingConfirmation) return;
+
+    const { item, decision, comment } = pendingConfirmation;
 
     try {
       setSavingId(item.id);
+      setPendingConfirmation(null);
 
       await apiRequest(`/submissions/${item.id}/review`, {
         method: 'POST',
@@ -208,21 +244,30 @@ export default function Review() {
         })
       });
 
-      alert(`Submission ${decision.toLowerCase()} successfully.`);
-
       setComments(prev => ({
         ...prev,
         [item.id]: ''
       }));
 
+      showNotification(
+        decision === 'Needs Changes'
+          ? 'Correction request sent successfully. The Creator can now view the review feedback.'
+          : 'Submission approved successfully.',
+        'success'
+      );
+
       await loadReviews();
     } catch (err) {
-      alert(err.message || 'Unable to save the review.');
+      showNotification(
+        err.message || 'Unable to save the review. Please try again.',
+        'error'
+      );
     } finally {
       setSavingId(null);
     }
   };
 
+  // Search and status filtering
   const filteredReviews = reviews.filter(item => {
     const matchesSearch =
       item.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -234,6 +279,7 @@ export default function Review() {
     return matchesSearch && matchesStatus;
   });
 
+  // Date formatting
   const formatDate = date => {
     if (!date) return '—';
 
@@ -595,6 +641,136 @@ export default function Review() {
               </table>
             )}
           </div>
+
+          {/* In-app Notification */}
+          {notification && (
+            <div
+              role="alert"
+              style={{
+                position: 'fixed',
+                top: '100px',
+                right: '25px',
+                zIndex: 9999,
+                maxWidth: '400px',
+                padding: '16px 20px',
+                borderRadius: '10px',
+                background:
+                  notification.type === 'success'
+                    ? '#e8f7ee'
+                    : '#fdecec',
+                color:
+                  notification.type === 'success'
+                    ? '#176b38'
+                    : '#a12626',
+                border: `1px solid ${
+                  notification.type === 'success'
+                    ? '#a8dfba'
+                    : '#f2b5b5'
+                }`,
+                boxShadow: '0 4px 15px rgba(0,0,0,0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <span style={{ fontSize: '20px' }}>
+                {notification.type === 'success' ? '✓' : '⚠'}
+              </span>
+
+              <span style={{ flex: 1 }}>
+                {notification.message}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setNotification(null)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  color: 'inherit'
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Review Confirmation Dialog */}
+          {pendingConfirmation && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10000
+              }}
+            >
+              <div
+                style={{
+                  background: '#ffffff',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  width: '90%',
+                  maxWidth: '420px',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.2)'
+                }}
+              >
+                <h2 style={{ marginTop: 0 }}>
+                  Confirm Review Decision
+                </h2>
+
+                <p>
+                  Are you sure you want to mark{' '}
+                  <strong>{pendingConfirmation.item.title}</strong> as{' '}
+                  <strong>{pendingConfirmation.decision}</strong>?
+                </p>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '10px',
+                    marginTop: '25px'
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPendingConfirmation(null)}
+                    style={{
+                      padding: '10px 18px',
+                      border: '1px solid #ccc',
+                      borderRadius: '7px',
+                      background: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={savingId !== null}
+                    onClick={confirmReview}
+                    style={{
+                      padding: '10px 18px',
+                      border: 'none',
+                      borderRadius: '7px',
+                      background: '#6828dc',
+                      color: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </main>
       </div>

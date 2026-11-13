@@ -25,11 +25,13 @@ export default function SubmitContent() {
   });
 
   const [selectedFile, setSelectedFile] = useState(null);
+  const [existingAttachment, setExistingAttachment] = useState(null);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingSubmission, setLoadingSubmission] = useState(isEditing);
 
-  // LOAD EXISTING SUBMISSION FOR EDITING
+  // LOAD EXISTING SUBMISSION
   useEffect(() => {
     if (!selectedSubmissionId) return;
 
@@ -44,21 +46,35 @@ export default function SubmitContent() {
         }
 
         const submission = response.data;
+        const savedDescription = submission.description || '';
 
-        const descriptionText = submission.description || '';
-        const marker = '\n\nContent:\n';
-        const markerIndex = descriptionText.indexOf(marker);
+        // Separate the description from the original content.
+        // Supports both Windows and Unix line endings.
+        const contentMarker = /(?:\r?\n){2}Content:\r?\n/;
+        const markerMatch = contentMarker.exec(savedDescription);
 
-        let description = descriptionText;
+        let description = savedDescription;
         let content = '';
 
-        if (markerIndex !== -1) {
-          description = descriptionText.substring(0, markerIndex);
-          content = descriptionText.substring(
-            markerIndex + marker.length
+        if (markerMatch) {
+          description = savedDescription.substring(0, markerMatch.index);
+          content = savedDescription.substring(
+            markerMatch.index + markerMatch[0].length
           );
         }
 
+        const attachments = submission.attachments || [];
+
+        if (attachments.length > 0) {
+          const attachment = attachments[0];
+
+          setExistingAttachment({
+            originalName:
+              attachment.originalName || 'Previously uploaded document'
+          });
+        }
+
+        // Do not clear text automatically.
         setFormData({
           title: submission.title || '',
           contentType: submission.category || '',
@@ -87,7 +103,42 @@ export default function SubmitContent() {
     setError('');
   };
 
-  // SAVE CONTENT AND RUN AI ANALYSIS
+  // SELECT A NEW DOCUMENT
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+
+    setError('');
+
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    const allowedExtensions = ['pdf', 'docx', 'pptx', 'txt'];
+    const extension = file.name.split('.').pop().toLowerCase();
+
+    if (!allowedExtensions.includes(extension)) {
+      setError('Please upload a PDF, DOCX, PPTX or TXT file.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError('File size must not exceed 15 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    // A new document becomes the content source.
+    setFormData(prev => ({
+      ...prev,
+      content: ''
+    }));
+
+    setSelectedFile(file);
+  };
+
+  // SAVE OR UPDATE SUBMISSION
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -95,27 +146,28 @@ export default function SubmitContent() {
     if (
       !formData.title.trim() ||
       !formData.contentType ||
-      !formData.description.trim() ||
-      !formData.content.trim()
+      !formData.description.trim()
     ) {
-      setError('Please complete all required fields.');
+      setError('Please complete the title, content type and description.');
       return;
     }
 
-    const allowedExtensions = ['pdf', 'docx', 'pptx', 'txt'];
+    const hasTextContent = Boolean(formData.content.trim());
+    const hasNewDocument = Boolean(selectedFile);
+    const hasExistingDocument = Boolean(existingAttachment);
 
-    if (selectedFile) {
-      const extension = selectedFile.name.split('.').pop().toLowerCase();
+    if (
+      !hasTextContent &&
+      !hasNewDocument &&
+      !hasExistingDocument
+    ) {
+      setError('Please enter content text or upload a document.');
+      return;
+    }
 
-      if (!allowedExtensions.includes(extension)) {
-        setError('Please upload a PDF, DOCX, PPTX or TXT file.');
-        return;
-      }
-
-      if (selectedFile.size > 15 * 1024 * 1024) {
-        setError('File size must not exceed 15 MB.');
-        return;
-      }
+    if (hasTextContent && (hasNewDocument || hasExistingDocument)) {
+      setError('Please use either content text or a document, not both.');
+      return;
     }
 
     try {
@@ -126,16 +178,18 @@ export default function SubmitContent() {
       submissionData.append('title', formData.title.trim());
       submissionData.append('category', formData.contentType);
 
-      submissionData.append(
-        'description',
-        `${formData.description.trim()}\n\nContent:\n${formData.content.trim()}`
-      );
+      const finalDescription = hasTextContent
+        ? `${formData.description.trim()}\n\nContent:\n${formData.content.trim()}`
+        : formData.description.trim();
 
+      submissionData.append('description', finalDescription);
+
+      // When replacing an existing document, send the new file.
+      // When no replacement is selected, the existing attachment remains.
       if (selectedFile) {
         submissionData.append('file', selectedFile);
       }
 
-      // CREATE OR UPDATE SUBMISSION
       const response = await apiRequest(
         isEditing
           ? `/submissions/${selectedSubmissionId}`
@@ -147,8 +201,9 @@ export default function SubmitContent() {
       );
 
       if (!response.success) {
-        setError(response.message || 'Unable to save submission.');
-        return;
+        throw new Error(
+          response.message || 'Unable to save submission.'
+        );
       }
 
       const submissionId =
@@ -157,8 +212,9 @@ export default function SubmitContent() {
         selectedSubmissionId;
 
       if (!submissionId) {
-        setError('Submission saved, but its ID could not be retrieved.');
-        return;
+        throw new Error(
+          'Submission saved, but its ID could not be retrieved.'
+        );
       }
 
       // RUN AI ANALYSIS
@@ -176,22 +232,19 @@ export default function SubmitContent() {
           );
         }
 
-        alert(
-          isEditing
-            ? 'Content updated and AI re-analysis completed!'
-            : 'Content submitted and AI analysis completed!'
-        );
-
         navigate('/findings', {
-          state: { submissionId }
+          state: {
+            submissionId,
+            notification: isEditing
+              ? 'Submission updated and re-analyzed successfully.'
+              : 'Submission created and analyzed successfully.'
+          }
         });
 
-      } catch  {
-        alert(
-          'Your content was saved, but AI analysis could not be completed. You can check your submission and try again.'
+      } catch (analysisError) {
+        setError(
+          `Your submission was saved, but AI analysis could not be completed: ${analysisError.message}`
         );
-
-        navigate('/submissions');
       }
 
     } catch (err) {
@@ -219,8 +272,8 @@ export default function SubmitContent() {
               <h1>{isEditing ? 'Edit Content' : 'Submit Content'}</h1>
               <p>
                 {isEditing
-                  ? 'Make corrections and submit your content for AI re-analysis.'
-                  : 'Submit your content for brand compliance analysis.'}
+                  ? 'Edit your existing content or replace its document.'
+                  : 'Submit text or a document for brand compliance analysis.'}
               </p>
             </div>
           </div>
@@ -278,43 +331,59 @@ export default function SubmitContent() {
               </div>
 
               <div className="form-group">
-                <label>Content Text *</label>
+                <label>Content Text</label>
 
                 <textarea
                   name="content"
-                  placeholder="Enter the content you want to check..."
+                  placeholder={
+                    existingAttachment || selectedFile
+                      ? 'A document is selected as the content source.'
+                      : 'Enter or edit your existing content here...'
+                  }
                   value={formData.content}
                   onChange={handleChange}
                   rows="7"
-                  required
+                  disabled={Boolean(existingAttachment || selectedFile)}
                 />
+
+                <p className="form-hint">
+                  Edit the existing text here, or use a document as your content source.
+                </p>
               </div>
 
               <div className="form-group">
-                <label>Upload Supporting Document (Optional)</label>
+                <label>Upload Content Document</label>
+
+                {existingAttachment && (
+                  <div className="submit-selected-file">
+                    <span>
+                      Current document: {existingAttachment.originalName}
+                    </span>
+                  </div>
+                )}
 
                 <input
                   type="file"
                   accept=".pdf,.docx,.pptx,.txt"
-                  onChange={(e) =>
-                    setSelectedFile(e.target.files?.[0] || null)
-                  }
+                  onChange={handleFileChange}
+                  disabled={Boolean(formData.content.trim())}
                 />
 
                 <p className="form-hint">
-                  Accepted formats: PDF, DOCX, PPTX and TXT.
-                  Maximum size: 15 MB.
+                  {existingAttachment
+                    ? 'Choose a new document above to replace the existing one. Leave this empty to keep the current document.'
+                    : 'Accepted formats: PDF, DOCX, PPTX and TXT. Maximum size: 15 MB.'}
                 </p>
 
                 {selectedFile && (
                   <div className="submit-selected-file">
-                    <span>{selectedFile.name}</span>
+                    <span>Replacement: {selectedFile.name}</span>
 
                     <button
                       type="button"
                       onClick={() => setSelectedFile(null)}
                     >
-                      Remove
+                      Remove replacement
                     </button>
                   </div>
                 )}
@@ -330,13 +399,10 @@ export default function SubmitContent() {
                   type="button"
                   className="cancel-submit-btn"
                   onClick={() =>
-  navigate(
-    isEditing ? '/findings' : '/dashboard',
-    isEditing
-      ? { state: { submissionId: selectedSubmissionId } }
-      : {}
-  )
-}
+                    navigate(
+                      isEditing ? '/submissions' : '/dashboard'
+                    )
+                  }
                   disabled={loading}
                 >
                   Cancel
@@ -350,7 +416,7 @@ export default function SubmitContent() {
                   {loading
                     ? 'Saving & Analyzing...'
                     : isEditing
-                      ? 'Save & Re-analyze'
+                      ? 'Save Changes & Re-analyze'
                       : 'Submit & Analyze'}
                 </button>
 

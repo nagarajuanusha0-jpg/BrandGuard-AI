@@ -1,8 +1,6 @@
-
 import { NavLink } from 'react-router-dom';
 
 export default function Sidebar({ role = 'Creator' }) {
-
   const menus = {
     Admin: [
       { name: 'Dashboard', path: '/dashboard' },
@@ -17,7 +15,7 @@ export default function Sidebar({ role = 'Creator' }) {
       { name: 'Dashboard', path: '/dashboard' },
       { name: 'Guidelines', path: '/guidelines' },
       { name: 'All Submissions', path: '/all-submissions' },
-      { name: 'AI Findings', path: '/findings' }
+      { name: 'AI Findings', path: '/findings' },
     ],
 
     Creator: [
@@ -25,16 +23,15 @@ export default function Sidebar({ role = 'Creator' }) {
       { name: 'Guidelines', path: '/guidelines' },
       { name: 'Submit Content', path: '/submit' },
       { name: 'My Submissions', path: '/submissions' },
-      { name: 'AI Findings', path: '/findings' }
+      { name: 'AI Findings', path: '/findings' },
     ],
-
     Reviewer: [
-  { name: 'Dashboard', path: '/dashboard' },
-  { name: 'Guidelines', path: '/guidelines' },
-  { name: 'All Submissions', path: '/all-submissions' },
-  { name: 'AI Findings', path: '/findings' },
-  { name: 'Review & Approval', path: '/review' }
-]
+      { name: 'Dashboard', path: '/dashboard' },
+      { name: 'Guidelines', path: '/guidelines' },
+      { name: 'All Submissions', path: '/all-submissions' },
+      { name: 'AI Findings', path: '/findings' },
+      { name: 'Review & Approval', path: '/review' }
+    ]
   };
 
   const currentMenu = menus[role] || menus.Creator;

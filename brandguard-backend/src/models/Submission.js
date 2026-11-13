@@ -19,21 +19,25 @@ const submissionSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+
     description: {
       type: String,
       required: true,
       trim: true
     },
+
     category: {
       type: String,
       required: true,
       trim: true
     },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true
     },
+
     status: {
       type: String,
       enum: [
@@ -48,14 +52,28 @@ const submissionSchema = new mongoose.Schema(
       ],
       default: "Submitted"
     },
+
     currentRevision: {
       type: Number,
       default: 1
     },
+
     attachments: [attachmentSchema],
+
     submittedAt: {
       type: Date,
       default: Date.now
+    },
+
+    // Latest AI analysis information
+    complianceScore: {
+      type: Number,
+      default: null
+    },
+
+    analyzedAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }

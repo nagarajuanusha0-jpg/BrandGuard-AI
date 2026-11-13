@@ -1,4 +1,8 @@
-
+const Finding = require("../models/Finding");
+const Review = require("../models/Review");
+const fs = require("fs");
+const path = require("path");
+const mongoose = require("mongoose");
 const Submission = require("../models/Submission");
 const Revision = require("../models/Revision");
 
@@ -345,12 +349,108 @@ const getSubmissionRevisions = async (req, res) => {
     });
   }
 };
+// DELETE SUBMISSION AND ITS RELATED RECORDS
+const deleteSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid submission ID."
+      });
+    }
+
+    const submission = await Submission.findById(id);
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        message: "Submission not found."
+      });
+    }
+
+    // Only the Creator who owns this submission can delete it.
+    if (submission.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own submissions."
+      });
+    }
+
+    // Collect current and historical uploaded documents.
+    const revisions = await Revision.find({
+      submissionId: submission._id
+    }).select("attachments");
+
+    const attachments = [
+      ...(submission.attachments || []),
+      ...revisions.flatMap(revision => revision.attachments || [])
+    ];
+
+    const uploadDirectory = path.resolve(
+      process.cwd(),
+      "uploads",
+      "submissions"
+    );
+
+    const filePaths = [
+      ...new Set(
+        attachments
+          .map(file => file.storagePath)
+          .filter(Boolean)
+      )
+    ];
+
+    // Remove associated database records.
+    await Promise.all([
+      Finding.deleteMany({ submissionId: submission._id }),
+      Review.deleteMany({ submissionId: submission._id }),
+      Revision.deleteMany({ submissionId: submission._id })
+    ]);
+
+    await Submission.findByIdAndDelete(submission._id);
+
+    // Clean up files belonging to this upload directory only.
+    for (const filePath of filePaths) {
+      const resolvedPath = path.resolve(filePath);
+
+      if (
+        resolvedPath.startsWith(uploadDirectory + path.sep)
+      ) {
+        try {
+          await fs.promises.unlink(resolvedPath);
+        } catch (fileError) {
+          if (fileError.code !== "ENOENT") {
+            console.error(
+              "Uploaded file cleanup error:",
+              fileError.message
+            );
+          }
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Submission and related records deleted successfully."
+    });
+
+  } catch (error) {
+    console.error("Delete submission error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to delete submission."
+    });
+  }
+};
 module.exports = {
   createSubmission,
   getSubmissions,
   getMySubmissions,
   getSubmissionById,
   updateSubmission,
-  getSubmissionRevisions
+  getSubmissionRevisions,
+  deleteSubmission
 };
