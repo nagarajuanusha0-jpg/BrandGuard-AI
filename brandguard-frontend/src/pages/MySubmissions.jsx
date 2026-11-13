@@ -105,14 +105,15 @@ export default function MySubmissions() {
     return 'Not Started';
   };
 
-  // Existing backend PATCH currently permits these statuses
-  const canEdit = status => {
-    return [
-      'Draft',
-      'Needs Changes',
-      'Analysis Complete'
-    ].includes(status);
-  };
+  // Show Edit button for Creator submissions
+const canEdit = status => {
+  return [
+    'Draft',
+    'Submitted',
+    'Needs Changes',
+    'Analysis Complete'
+  ].includes(status);
+};
 
   // Get the review feedback for the current submission revision
   const getLatestReview = item => {
