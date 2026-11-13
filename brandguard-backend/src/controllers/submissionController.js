@@ -233,7 +233,13 @@ const updateSubmission = async (req, res) => {
       });
     }
 
-    if (!["Draft", "Needs Changes", "Analysis Complete"].includes(submission.status)) {
+    if (![
+  "Draft",
+  "Submitted",
+  "Resubmitted",
+  "Needs Changes",
+  "Analysis Complete"
+].includes(submission.status)) {
       return res.status(400).json({
         success: false,
         message: "This submission cannot be edited in its current status."

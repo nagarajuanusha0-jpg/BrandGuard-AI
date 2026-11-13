@@ -54,7 +54,6 @@ export default function MySubmissions() {
 
         setReviewHistory([]);
       }
-
     } catch (err) {
       setError(err.message || 'Unable to load submissions.');
     } finally {
@@ -105,15 +104,18 @@ export default function MySubmissions() {
     return 'Not Started';
   };
 
-  // Show Edit button for Creator submissions
-const canEdit = status => {
-  return [
-    'Draft',
-    'Submitted',
-    'Needs Changes',
-    'Analysis Complete'
-  ].includes(status);
-};
+  // Show Edit button for eligible Creator submissions
+  const canEdit = status => {
+    return [
+      'Draft',
+      'Submitted',
+      'Pending',
+      'Pending Review',
+      'Resubmitted',
+      'Needs Changes',
+      'Analysis Complete'
+    ].includes(status);
+  };
 
   // Get the review feedback for the current submission revision
   const getLatestReview = item => {
@@ -194,7 +196,6 @@ const canEdit = status => {
       setNotification('Submission deleted successfully.');
 
       await loadSubmissions();
-
     } catch (err) {
       setError(err.message || 'Unable to delete submission.');
     } finally {
